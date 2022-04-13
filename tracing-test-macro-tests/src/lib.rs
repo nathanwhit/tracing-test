@@ -44,6 +44,13 @@ mod tests {
         logs_assert(assert_fn);
     }
 
+    #[tokio::test]
+    #[traced_test(filter_crate)]
+    async fn filters_crate() {
+        info!("This is being logged on the info level");
+        assert!(logs_contain("logged on the info level"));
+    }
+
     #[traced_test]
     #[test]
     fn annotate_sync_test() {

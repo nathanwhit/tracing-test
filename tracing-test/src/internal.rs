@@ -7,6 +7,7 @@ use std::sync::{Mutex, Once};
 use lazy_static::lazy_static;
 
 pub use crate::subscriber::{get_subscriber, MockWriter};
+pub use tracing_subscriber::util::SubscriberInitExt;
 
 /// Static variable to ensure that logging is only initialized once.
 pub static INITIALIZED: Once = Once::new();

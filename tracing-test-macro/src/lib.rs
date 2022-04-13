@@ -48,27 +48,42 @@ fn get_free_scope(mut test_fn_name: String) -> String {
 ///
 /// Check out the docs of the `tracing-test` crate for more usage information.
 #[proc_macro_attribute]
-pub fn traced_test(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn traced_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse annotated function
     let mut function: ItemFn = parse(item).expect("Could not parse ItemFn");
+    let ident: Option<syn::Ident> = parse(attr).expect("Could not parse attrs");
+
+    let filter_crate = if let Some(ident) = ident {
+        ident.to_string() == "filter_crate"
+    } else {
+        false
+    };
 
     // Determine scope
     let scope = get_free_scope(function.sig.ident.to_string());
+
+    let env_filter = if filter_crate {
+        quote! {
+            let crate_name = module_path!()
+                .split(":")
+                .next()
+                .expect("Could not find crate name in module path")
+                .to_string();
+            let env_filter = format!("{}=trace", crate_name);
+        }
+    } else {
+        quote! { let env_filter = "trace".to_string(); }
+    };
 
     // Prepare code that should be injected at the start of the function
     let init = parse::<Stmt>(
         quote! {
             tracing_test::internal::INITIALIZED.call_once(|| {
-                let crate_name = module_path!()
-                    .split(":")
-                    .next()
-                    .expect("Could not find crate name in module path")
-                    .to_string();
-                let env_filter = format!("{}=trace", crate_name);
+                use tracing_test::internal::SubscriberInitExt;
+                #env_filter
                 let mock_writer = tracing_test::internal::MockWriter::new(&tracing_test::internal::GLOBAL_BUF);
                 let subscriber = tracing_test::internal::get_subscriber(mock_writer, &env_filter);
-                tracing::dispatcher::set_global_default(subscriber)
-                    .expect("Could not set global tracing subscriber");
+                subscriber.try_init().expect("Could not set global tracing subscriber");
             });
         }
         .into(),
